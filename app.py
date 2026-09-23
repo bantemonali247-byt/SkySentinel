@@ -3,8 +3,16 @@ import random
 import uuid
 import math
 
-from flask import Flask, jsonify, render_template, request
+from flask import (
+    Flask,
+    jsonify,
+    render_template,
+    request
+)
+
 from flask_cors import CORS
+
+from backend.services.drone_simulator import DroneSimulator
 
 
 # ============================================================
@@ -12,6 +20,7 @@ from flask_cors import CORS
 # ============================================================
 
 app = Flask(__name__)
+
 CORS(app)
 
 
@@ -20,54 +29,67 @@ CORS(app)
 # ============================================================
 
 drones = [
+
     {
         "id": "DR-001",
         "name": "Sentinel Alpha",
         "status": "ACTIVE",
         "battery": 87,
-        "latitude": 21.1458,
-        "longitude": 79.0882,
+        "latitude": 21.1480,
+        "longitude": 79.0820,
         "altitude": 120,
         "speed": 32,
-        "mission": "SEARCH"
+        "mission": "SEARCH",
+        "coverage": 0
     },
+
     {
         "id": "DR-002",
         "name": "Sentinel Beta",
         "status": "ACTIVE",
         "battery": 64,
-        "latitude": 21.1510,
-        "longitude": 79.0960,
+        "latitude": 21.1530,
+        "longitude": 79.0920,
         "altitude": 105,
         "speed": 28,
-        "mission": "SEARCH"
+        "mission": "SEARCH",
+        "coverage": 0
     },
+
     {
         "id": "DR-003",
         "name": "Sentinel Gamma",
         "status": "STANDBY",
         "battery": 93,
-        "latitude": 21.1390,
+        "latitude": 21.1500,
         "longitude": 79.0800,
         "altitude": 0,
         "speed": 0,
-        "mission": None
+        "mission": None,
+        "coverage": 0
     },
+
     {
         "id": "DR-004",
         "name": "Sentinel Delta",
         "status": "ACTIVE",
         "battery": 72,
-        "latitude": 21.1580,
-        "longitude": 79.0740,
+        "latitude": 21.1570,
+        "longitude": 79.0750,
         "altitude": 98,
         "speed": 25,
-        "mission": "PATROL"
+        "mission": "PATROL",
+        "coverage": 0
     }
 ]
 
 
+# ============================================================
+# MISSIONS
+# ============================================================
+
 missions = [
+
     {
         "id": "MSN-001",
         "name": "Nagpur Flood Search",
@@ -82,15 +104,22 @@ missions = [
             timespec="seconds"
         )
     }
+
 ]
 
 
+# ============================================================
+# ALERTS
+# ============================================================
+
 alerts = [
+
     {
         "id": "ALT-001",
         "type": "PERSON_DETECTED",
         "severity": "HIGH",
-        "message": "Possible survivor detected by DR-001",
+        "message":
+            "Possible survivor detected by DR-001",
         "latitude": 21.1490,
         "longitude": 79.0910,
         "drone_id": "DR-001",
@@ -99,13 +128,22 @@ alerts = [
             timespec="seconds"
         )
     }
+
 ]
 
 
+# ============================================================
+# SETTINGS
+# ============================================================
+
 settings = {
+
     "auto_dispatch": True,
+
     "alert_threshold": "HIGH",
-    "refresh_seconds": 5
+
+    "refresh_seconds": 2
+
 }
 
 
@@ -114,11 +152,28 @@ settings = {
 # ============================================================
 
 DISASTER_ZONE = {
+
     "south": 21.1450,
+
     "north": 21.1600,
+
     "west": 79.0700,
+
     "east": 79.1000
+
 }
+
+
+# ============================================================
+# DRONE SIMULATOR
+# ============================================================
+
+drone_simulator = DroneSimulator(
+    drones,
+    DISASTER_ZONE
+)
+
+drone_simulator.start()
 
 
 # ============================================================
@@ -126,17 +181,31 @@ DISASTER_ZONE = {
 # ============================================================
 
 def current_time():
+
     return datetime.now().isoformat(
         timespec="seconds"
     )
 
 
 def find_drone(drone_id):
+
     return next(
         (
             drone
             for drone in drones
             if drone["id"] == drone_id
+        ),
+        None
+    )
+
+
+def find_mission(mission_id):
+
+    return next(
+        (
+            mission
+            for mission in missions
+            if mission["id"] == mission_id
         ),
         None
     )
@@ -148,22 +217,35 @@ def find_drone(drone_id):
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+
+    return render_template(
+        "index.html"
+    )
 
 
 # ============================================================
-# HEALTH CHECK
+# HEALTH
 # ============================================================
 
-@app.route("/api/health", methods=["GET"])
+@app.get("/api/health")
 def health():
 
     return jsonify({
+
         "success": True,
+
         "status": "online",
+
         "system": "SkySentinel",
+
         "mode": "simulation",
+
+        "simulator": (
+            drone_simulator.running
+        ),
+
         "time": current_time()
+
     })
 
 
@@ -171,44 +253,88 @@ def health():
 # DASHBOARD
 # ============================================================
 
-@app.route("/api/dashboard", methods=["GET"])
+@app.get("/api/dashboard")
 def dashboard():
 
     active_drones = [
+
         drone
+
         for drone in drones
+
         if drone["status"] == "ACTIVE"
+
     ]
 
     average_battery = 0
 
     if drones:
+
         average_battery = round(
+
             sum(
                 drone["battery"]
                 for drone in drones
-            ) / len(drones)
+            )
+            /
+            len(drones)
+
         )
 
     survivors_detected = sum(
+
         1
+
         for alert in alerts
+
         if (
-            alert["type"] == "PERSON_DETECTED"
+
+            alert["type"]
+            == "PERSON_DETECTED"
+
             and not alert["resolved"]
+
         )
+
     )
 
     open_alerts = sum(
+
         1
+
         for alert in alerts
+
         if not alert["resolved"]
+
     )
 
     active_mission = any(
+
         mission["status"] == "ACTIVE"
+
         for mission in missions
+
     )
+
+    total_coverage = 0
+
+    if active_drones:
+
+        total_coverage = round(
+
+            sum(
+                drone.get(
+                    "coverage",
+                    0
+                )
+                for drone in active_drones
+            )
+            /
+            len(active_drones),
+
+            2
+
+        )
 
     return jsonify({
 
@@ -232,7 +358,14 @@ def dashboard():
             average_battery,
 
         "open_alerts":
-            open_alerts
+            open_alerts,
+
+        "average_coverage":
+            total_coverage,
+
+        "simulator_running":
+            drone_simulator.running
+
     })
 
 
@@ -240,45 +373,65 @@ def dashboard():
 # DRONES
 # ============================================================
 
-@app.route("/api/drones", methods=["GET"])
+@app.get("/api/drones")
 def get_drones():
 
     active_count = sum(
+
         1
+
         for drone in drones
+
         if drone["status"] == "ACTIVE"
+
     )
 
     return jsonify({
 
         "success": True,
 
-        "drones":
-            drones,
+        "drones": drones,
 
         "active_drones":
-            active_count
+            active_count,
+
+        "total_drones":
+            len(drones),
+
+        "simulator_running":
+            drone_simulator.running
+
     })
 
 
-@app.route(
-    "/api/drones/<drone_id>",
-    methods=["GET"]
-)
+# ============================================================
+# SINGLE DRONE
+# ============================================================
+
+@app.get("/api/drones/<drone_id>")
 def get_drone(drone_id):
 
-    drone = find_drone(drone_id)
+    drone = find_drone(
+        drone_id
+    )
 
     if drone is None:
 
         return jsonify({
+
             "success": False,
-            "message": "Drone not found"
+
+            "message":
+                "Drone not found"
+
         }), 404
 
     return jsonify({
+
         "success": True,
+
         "drone": drone
+
     })
 
 
@@ -286,19 +439,24 @@ def get_drone(drone_id):
 # DRONE COMMAND
 # ============================================================
 
-@app.route(
-    "/api/drones/<drone_id>/command",
-    methods=["POST"]
+@app.post(
+    "/api/drones/<drone_id>/command"
 )
 def drone_command(drone_id):
 
-    drone = find_drone(drone_id)
+    drone = find_drone(
+        drone_id
+    )
 
     if drone is None:
 
         return jsonify({
+
             "success": False,
-            "message": "Drone not found"
+
+            "message":
+                "Drone not found"
+
         }), 404
 
     data = request.get_json(
@@ -306,16 +464,26 @@ def drone_command(drone_id):
     ) or {}
 
     command = str(
-        data.get("command", "")
+        data.get(
+            "command",
+            ""
+        )
     ).upper()
 
     allowed_commands = {
+
         "START",
+
         "STOP",
+
         "SEARCH",
+
         "RESCUE",
+
         "PATROL",
+
         "RETURN_HOME"
+
     }
 
     if command not in allowed_commands:
@@ -326,13 +494,19 @@ def drone_command(drone_id):
 
             "message":
                 "Invalid command. Allowed commands: "
-                + ", ".join(
-                    sorted(allowed_commands)
+                +
+                ", ".join(
+                    sorted(
+                        allowed_commands
+                    )
                 )
+
         }), 400
 
-
+    # --------------------------------------------------------
     # START
+    # --------------------------------------------------------
+
     if command == "START":
 
         drone["status"] = "ACTIVE"
@@ -342,10 +516,13 @@ def drone_command(drone_id):
         drone["speed"] = 25
 
         if not drone.get("mission"):
+
             drone["mission"] = "SEARCH"
 
-
+    # --------------------------------------------------------
     # STOP
+    # --------------------------------------------------------
+
     elif command == "STOP":
 
         drone["status"] = "STANDBY"
@@ -356,8 +533,10 @@ def drone_command(drone_id):
 
         drone["speed"] = 0
 
-
+    # --------------------------------------------------------
     # RETURN HOME
+    # --------------------------------------------------------
+
     elif command == "RETURN_HOME":
 
         drone["status"] = "ACTIVE"
@@ -368,8 +547,10 @@ def drone_command(drone_id):
 
         drone["speed"] = 20
 
-
+    # --------------------------------------------------------
     # SEARCH / RESCUE / PATROL
+    # --------------------------------------------------------
+
     else:
 
         drone["status"] = "ACTIVE"
@@ -377,15 +558,20 @@ def drone_command(drone_id):
         drone["mission"] = command
 
         drone["altitude"] = max(
-            drone["altitude"],
+            drone.get(
+                "altitude",
+                80
+            ),
             80
         )
 
         drone["speed"] = max(
-            drone["speed"],
+            drone.get(
+                "speed",
+                20
+            ),
             20
         )
-
 
     return jsonify({
 
@@ -397,6 +583,165 @@ def drone_command(drone_id):
 
         "drone":
             drone
+
+    })
+
+
+# ============================================================
+# DRONE TRAIL
+# ============================================================
+
+@app.get(
+    "/api/drones/<drone_id>/trail"
+)
+def get_drone_trail(drone_id):
+
+    drone = find_drone(
+        drone_id
+    )
+
+    if drone is None:
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                "Drone not found"
+
+        }), 404
+
+    return jsonify({
+
+        "success": True,
+
+        "drone_id":
+            drone_id,
+
+        "trail":
+            drone_simulator.get_trail(
+                drone_id
+            )
+
+    })
+
+
+# ============================================================
+# CLEAR TRAIL
+# ============================================================
+
+@app.post(
+    "/api/drones/<drone_id>/trail/clear"
+)
+def clear_drone_trail(drone_id):
+
+    drone = find_drone(
+        drone_id
+    )
+
+    if drone is None:
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                "Drone not found"
+
+        }), 404
+
+    drone_simulator.clear_trail(
+        drone_id
+    )
+
+    return jsonify({
+
+        "success": True,
+
+        "message":
+            "Drone trail cleared"
+
+    })
+
+
+# ============================================================
+# SIMULATOR STATUS
+# ============================================================
+
+@app.get("/api/simulator")
+def simulator_status():
+
+    return jsonify({
+
+        "success": True,
+
+        "running":
+            drone_simulator.running,
+
+        "drone_count":
+            len(drones)
+
+    })
+
+
+# ============================================================
+# START SIMULATOR
+# ============================================================
+
+@app.post("/api/simulator/start")
+def start_simulator():
+
+    drone_simulator.start()
+
+    return jsonify({
+
+        "success": True,
+
+        "running": True,
+
+        "message":
+            "Drone simulation started"
+
+    })
+
+
+# ============================================================
+# STOP SIMULATOR
+# ============================================================
+
+@app.post("/api/simulator/stop")
+def stop_simulator():
+
+    drone_simulator.stop()
+
+    return jsonify({
+
+        "success": True,
+
+        "running": False,
+
+        "message":
+            "Drone simulation stopped"
+
+    })
+
+
+# ============================================================
+# RESET SIMULATION
+# ============================================================
+
+@app.post("/api/simulator/reset")
+def reset_simulator():
+
+    drone_simulator.reset()
+
+    return jsonify({
+
+        "success": True,
+
+        "message":
+            "Drone simulation reset"
+
     })
 
 
@@ -404,10 +749,7 @@ def drone_command(drone_id):
 # MISSIONS
 # ============================================================
 
-@app.route(
-    "/api/missions",
-    methods=["GET"]
-)
+@app.get("/api/missions")
 def get_missions():
 
     return jsonify({
@@ -416,13 +758,15 @@ def get_missions():
 
         "missions":
             missions
+
     })
 
 
-@app.route(
-    "/api/missions",
-    methods=["POST"]
-)
+# ============================================================
+# CREATE MISSION
+# ============================================================
+
+@app.post("/api/missions")
 def create_mission():
 
     data = request.get_json(
@@ -433,7 +777,10 @@ def create_mission():
 
         "id":
             "MSN-"
-            + uuid.uuid4().hex[:6].upper(),
+            +
+            uuid.uuid4()
+            .hex[:6]
+            .upper(),
 
         "name":
             data.get(
@@ -464,6 +811,7 @@ def create_mission():
 
         "created_at":
             current_time()
+
     }
 
     missions.insert(
@@ -477,6 +825,7 @@ def create_mission():
 
         "mission":
             mission
+
     }), 201
 
 
@@ -484,31 +833,27 @@ def create_mission():
 # START MISSION
 # ============================================================
 
-@app.route(
-    "/api/missions/<mission_id>/start",
-    methods=["POST"]
+@app.post(
+    "/api/missions/<mission_id>/start"
 )
 def start_mission(mission_id):
 
-    mission = next(
-        (
-            mission
-            for mission in missions
-            if mission["id"] == mission_id
-        ),
-        None
+    mission = find_mission(
+        mission_id
     )
 
     if mission is None:
 
         return jsonify({
+
             "success": False,
-            "message": "Mission not found"
+
+            "message":
+                "Mission not found"
+
         }), 404
 
-
     mission["status"] = "ACTIVE"
-
 
     for drone_id in mission[
         "assigned_drones"
@@ -530,7 +875,6 @@ def start_mission(mission_id):
 
             drone["speed"] = 25
 
-
     return jsonify({
 
         "success": True,
@@ -540,6 +884,7 @@ def start_mission(mission_id):
 
         "mission":
             mission
+
     })
 
 
@@ -547,31 +892,27 @@ def start_mission(mission_id):
 # STOP MISSION
 # ============================================================
 
-@app.route(
-    "/api/missions/<mission_id>/stop",
-    methods=["POST"]
+@app.post(
+    "/api/missions/<mission_id>/stop"
 )
 def stop_mission(mission_id):
 
-    mission = next(
-        (
-            mission
-            for mission in missions
-            if mission["id"] == mission_id
-        ),
-        None
+    mission = find_mission(
+        mission_id
     )
 
     if mission is None:
 
         return jsonify({
+
             "success": False,
-            "message": "Mission not found"
+
+            "message":
+                "Mission not found"
+
         }), 404
 
-
     mission["status"] = "COMPLETED"
-
 
     for drone_id in mission[
         "assigned_drones"
@@ -591,7 +932,6 @@ def stop_mission(mission_id):
 
             drone["speed"] = 0
 
-
     return jsonify({
 
         "success": True,
@@ -601,6 +941,7 @@ def stop_mission(mission_id):
 
         "mission":
             mission
+
     })
 
 
@@ -608,10 +949,7 @@ def stop_mission(mission_id):
 # ALERTS
 # ============================================================
 
-@app.route(
-    "/api/alerts",
-    methods=["GET"]
-)
+@app.get("/api/alerts")
 def get_alerts():
 
     return jsonify({
@@ -620,22 +958,32 @@ def get_alerts():
 
         "alerts":
             alerts
+
     })
 
 
-@app.route(
-    "/api/alerts/<alert_id>/resolve",
-    methods=["POST"]
+# ============================================================
+# RESOLVE ALERT
+# ============================================================
+
+@app.post(
+    "/api/alerts/<alert_id>/resolve"
 )
 def resolve_alert(alert_id):
 
     alert = next(
+
         (
             alert
+
             for alert in alerts
+
             if alert["id"] == alert_id
+
         ),
+
         None
+
     )
 
     if alert is None:
@@ -646,11 +994,10 @@ def resolve_alert(alert_id):
 
             "message":
                 "Alert not found"
+
         }), 404
 
-
     alert["resolved"] = True
-
 
     return jsonify({
 
@@ -661,6 +1008,7 @@ def resolve_alert(alert_id):
 
         "alert":
             alert
+
     })
 
 
@@ -668,35 +1016,30 @@ def resolve_alert(alert_id):
 # AI DETECTION
 # ============================================================
 
-@app.route(
-    "/api/ai/detect",
-    methods=["POST"]
-)
+@app.post("/api/ai/detect")
 def ai_detect():
 
     data = request.get_json(
         silent=True
     ) or {}
 
-
     latitude = float(
         data.get(
             "latitude",
-            21.1458
+            21.1480
         )
     )
 
     longitude = float(
         data.get(
             "longitude",
-            79.0882
+            79.0820
         )
     )
 
     drone_id = data.get(
         "drone_id"
     )
-
 
     people = random.randint(
         0,
@@ -713,12 +1056,13 @@ def ai_detect():
         10
     )
 
-    risk_level = random.choice([
-        "LOW",
-        "MEDIUM",
-        "HIGH"
-    ])
-
+    risk_level = random.choice(
+        [
+            "LOW",
+            "MEDIUM",
+            "HIGH"
+        ]
+    )
 
     if people > 0:
 
@@ -730,7 +1074,10 @@ def ai_detect():
 
                 "id":
                     "ALT-"
-                    + uuid.uuid4().hex[:6].upper(),
+                    +
+                    uuid.uuid4()
+                    .hex[:6]
+                    .upper(),
 
                 "type":
                     "PERSON_DETECTED",
@@ -756,9 +1103,10 @@ def ai_detect():
 
                 "timestamp":
                     current_time()
-            }
-        )
 
+            }
+
+        )
 
     return jsonify({
 
@@ -784,6 +1132,7 @@ def ai_detect():
 
         "longitude":
             longitude
+
     })
 
 
@@ -791,49 +1140,48 @@ def ai_detect():
 # RESCUE ROUTE
 # ============================================================
 
-@app.route(
-    "/api/rescue/route",
-    methods=["POST"]
-)
+@app.post("/api/rescue/route")
 def rescue_route():
 
     data = request.get_json(
         silent=True
     ) or {}
 
-
     start = data.get(
 
         "start",
 
         {
+
             "latitude":
                 21.1400,
 
             "longitude":
                 79.0800
-        }
-    )
 
+        }
+
+    )
 
     target = data.get(
 
         "target",
 
         {
+
             "latitude":
                 21.1550,
 
             "longitude":
                 79.0950
-        }
-    )
 
+        }
+
+    )
 
     route = []
 
     steps = 20
-
 
     for i in range(
         steps + 1
@@ -841,35 +1189,48 @@ def rescue_route():
 
         ratio = i / steps
 
-
         latitude = (
-            start["latitude"]
-            + (
-                target["latitude"]
-                - start["latitude"]
-            ) * ratio
-        )
 
+            start["latitude"]
+
+            +
+
+            (
+                target["latitude"]
+                -
+                start["latitude"]
+            )
+            *
+            ratio
+
+        )
 
         longitude = (
+
             start["longitude"]
-            + (
+
+            +
+
+            (
                 target["longitude"]
-                - start["longitude"]
-            ) * ratio
+                -
+                start["longitude"]
+            )
+            *
+            ratio
+
         )
 
-
-        route.append([
-            latitude,
-            longitude
-        ])
-
+        route.append(
+            [
+                latitude,
+                longitude
+            ]
+        )
 
     return jsonify({
 
-        "success":
-            True,
+        "success": True,
 
         "route":
             route,
@@ -891,6 +1252,7 @@ def rescue_route():
 
         "mode":
             "simulation"
+
     })
 
 
@@ -898,32 +1260,29 @@ def rescue_route():
 # SETTINGS
 # ============================================================
 
-@app.route(
-    "/api/settings",
-    methods=["GET"]
-)
+@app.get("/api/settings")
 def get_settings():
 
     return jsonify({
 
-        "success":
-            True,
+        "success": True,
 
         "settings":
             settings
+
     })
 
 
-@app.route(
-    "/api/settings",
-    methods=["POST"]
-)
+# ============================================================
+# UPDATE SETTINGS
+# ============================================================
+
+@app.post("/api/settings")
 def update_settings():
 
     data = request.get_json(
         silent=True
     ) or {}
-
 
     for key in settings:
 
@@ -931,19 +1290,18 @@ def update_settings():
 
             settings[key] = data[key]
 
-
     return jsonify({
 
-        "success":
-            True,
+        "success": True,
 
         "settings":
             settings
+
     })
 
 
 # ============================================================
-# DRONE AREA ALLOCATION
+# AREA CALCULATION
 # ============================================================
 
 def calculate_area_km2(
@@ -954,17 +1312,21 @@ def calculate_area_km2(
 ):
 
     height_km = (
+
         abs(
             north - south
         )
-        * 111.32
+
+        *
+        111.32
+
     )
 
-
     middle_latitude = (
-        south + north
-    ) / 2
 
+        south + north
+
+    ) / 2
 
     width_km = (
 
@@ -972,21 +1334,27 @@ def calculate_area_km2(
             east - west
         )
 
-        * 111.32
+        *
+        111.32
 
-        * math.cos(
+        *
+        math.cos(
             math.radians(
                 middle_latitude
             )
         )
-    )
 
+    )
 
     return round(
         height_km * width_km,
         3
     )
 
+
+# ============================================================
+# GENERATE DRONE AREAS
+# ============================================================
 
 def generate_drone_areas():
 
@@ -996,116 +1364,129 @@ def generate_drone_areas():
 
         for drone in drones
 
-        if drone["status"]
-        == "ACTIVE"
+        if drone["status"] == "ACTIVE"
 
     ]
-
 
     drone_count = len(
         active_drones
     )
 
-
     if drone_count == 0:
 
         return []
 
-
     rows = max(
+
         1,
+
         math.floor(
             math.sqrt(
                 drone_count
             )
         )
-    )
 
+    )
 
     columns = math.ceil(
         drone_count / rows
     )
 
-
     while (
         rows * columns
-        < drone_count
+        <
+        drone_count
     ):
 
         rows += 1
 
-
     latitude_step = (
 
         DISASTER_ZONE["north"]
-        - DISASTER_ZONE["south"]
+
+        -
+        DISASTER_ZONE["south"]
 
     ) / rows
-
 
     longitude_step = (
 
         DISASTER_ZONE["east"]
-        - DISASTER_ZONE["west"]
+
+        -
+        DISASTER_ZONE["west"]
 
     ) / columns
 
-
     areas = []
-
 
     for index, drone in enumerate(
         active_drones
     ):
 
         row = (
-            index // columns
+            index
+            //
+            columns
         )
 
         column = (
-            index % columns
+            index
+            %
+            columns
         )
-
 
         south = (
 
             DISASTER_ZONE["south"]
 
-            + row
-            * latitude_step
-        )
+            +
+            row
+            *
+            latitude_step
 
+        )
 
         north = (
-            south
-            + latitude_step
-        )
 
+            south
+
+            +
+            latitude_step
+
+        )
 
         west = (
 
             DISASTER_ZONE["west"]
 
-            + column
-            * longitude_step
-        )
+            +
+            column
+            *
+            longitude_step
 
+        )
 
         east = (
+
             west
-            + longitude_step
+
+            +
+            longitude_step
+
         )
 
+        area_km2 = calculate_area_km2(
 
-        area_km2 = (
-            calculate_area_km2(
-                south,
-                north,
-                west,
-                east
-            )
+            south,
+
+            north,
+
+            west,
+
+            east
+
         )
-
 
         areas.append({
 
@@ -1123,6 +1504,12 @@ def generate_drone_areas():
 
             "mission":
                 drone["mission"],
+
+            "coverage":
+                drone.get(
+                    "coverage",
+                    0
+                ),
 
             "area_km2":
                 round(
@@ -1163,6 +1550,7 @@ def generate_drone_areas():
                     north,
                     west
                 ]
+
             ],
 
             "bounds": {
@@ -1178,42 +1566,38 @@ def generate_drone_areas():
 
                 "east":
                     east
-            }
-        })
 
+            }
+
+        })
 
     return areas
 
 
-@app.route(
-    "/api/drone-areas",
-    methods=["GET"]
-)
+# ============================================================
+# DRONE AREAS API
+# ============================================================
+
+@app.get("/api/drone-areas")
 def get_drone_areas():
 
-    areas = (
-        generate_drone_areas()
+    areas = generate_drone_areas()
+
+    total_area = calculate_area_km2(
+
+        DISASTER_ZONE["south"],
+
+        DISASTER_ZONE["north"],
+
+        DISASTER_ZONE["west"],
+
+        DISASTER_ZONE["east"]
+
     )
-
-
-    total_area = (
-        calculate_area_km2(
-
-            DISASTER_ZONE["south"],
-
-            DISASTER_ZONE["north"],
-
-            DISASTER_ZONE["west"],
-
-            DISASTER_ZONE["east"]
-        )
-    )
-
 
     return jsonify({
 
-        "success":
-            True,
+        "success": True,
 
         "total_area_km2":
             total_area,
@@ -1232,6 +1616,74 @@ def get_drone_areas():
 
         "areas":
             areas
+
+    })
+
+
+# ============================================================
+# LIVE TELEMETRY
+# ============================================================
+
+@app.get("/api/telemetry")
+def telemetry():
+
+    telemetry_data = []
+
+    for drone in drones:
+
+        telemetry_data.append({
+
+            "drone_id":
+                drone["id"],
+
+            "latitude":
+                drone["latitude"],
+
+            "longitude":
+                drone["longitude"],
+
+            "altitude":
+                drone["altitude"],
+
+            "speed":
+                drone["speed"],
+
+            "battery":
+                drone["battery"],
+
+            "heading":
+                drone.get(
+                    "heading",
+                    0
+                ),
+
+            "coverage":
+                drone.get(
+                    "coverage",
+                    0
+                ),
+
+            "status":
+                drone["status"],
+
+            "mission":
+                drone["mission"],
+
+            "timestamp":
+                current_time()
+
+        })
+
+    return jsonify({
+
+        "success": True,
+
+        "telemetry":
+            telemetry_data,
+
+        "simulator_running":
+            drone_simulator.running
+
     })
 
 
@@ -1250,4 +1702,5 @@ if __name__ == "__main__":
         debug=True,
 
         use_reloader=False
+
     )
