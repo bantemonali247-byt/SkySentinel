@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SkySentinel — Disaster Response</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+<header class="top-header">
+  <div class="logo">🚁 SkySentinel</div>
+  <div class="title"><h1>Disaster Drone Swarm Coordination System</h1><p>AI-Powered Search &amp; Rescue</p></div>
+  <div class="status"><span id="serverStatus" class="live">🟢 ONLINE</span><span id="clock">00:00:00</span><button class="icon-btn" onclick="showPage('settings', document.querySelector('[data-page=settings]'))">⚙</button></div>
+</header>
+<div class="dashboard">
+<aside class="sidebar">
+  <h2>MENU</h2>
+  <ul>
+    <li class="active" data-page="dashboard" onclick="showPage('dashboard',this)"><i class="fas fa-house"></i> Dashboard</li>
+    <li data-page="map" onclick="showPage('map',this)">🗺 Disaster Map</li>
+    <li data-page="drones" onclick="showPage('drones',this)">🚁 Drone Swarm</li>
+    <li data-page="ai" onclick="showPage('ai',this)">🤖 AI Detection</li>
+    <li data-page="routes" onclick="showPage('routes',this)">📍 Rescue Routes</li>
+    <li data-page="missions" onclick="showPage('missions',this)">📊 Mission Logs</li>
+    <li data-page="settings" onclick="showPage('settings',this)">⚙ Settings</li>
+  </ul>
+</aside>
+<main class="content">
+<section id="dashboard" class="view active">
+  <div class="page-head"><div><h2>Mission Dashboard</h2><p>Live disaster response monitoring</p></div><button class="btn" onclick="loadDashboard()">↻ Refresh</button></div>
+  <div class="cards">
+    <div class="card"><h3>🚁 Active Drones</h3><p id="activeDrones">0</p><small id="totalDrones">0 total</small></div>
+    <div class="card"><h3>👤 Survivors Detected</h3><p id="survivors">0</p><small>unresolved AI detections</small></div>
+    <div class="card"><h3>📡 Mission Status</h3><p id="missionStatus">IDLE</p><small id="alertCount">0 open alerts</small></div>
+    <div class="card"><h3>🔋 Battery</h3><p id="battery">0%</p><small>average swarm battery</small></div>
+  </div>
+  <h2 class="map-title">Mission Map</h2><div id="map"></div>
+  <div class="panel"><div class="panel-head"><h3>🚨 Latest Alerts</h3><button class="btn small" onclick="loadAlerts()">Refresh</button></div><div id="alerts"></div></div>
+</section>
+<section id="mapPage" class="view"><div class="page-head"><div><h2>Disaster Map</h2><p>Live drone locations and route planning</p></div><button class="btn" onclick="refreshMap()">↻ Refresh Map</button></div><div id="largeMap"></div></section>
+<section id="dronesPage" class="view"><div class="page-head"><div><h2>Drone Swarm</h2><p>Monitor and control rescue drones</p></div><button class="btn" onclick="loadDrones()">↻ Refresh</button></div><div id="droneGrid" class="drone-grid"></div></section>
+<section id="aiPage" class="view"><div class="page-head"><div><h2>AI Detection</h2><p>Run a simulated detection against a rescue location</p></div></div><div class="form"><label>Latitude<input id="aiLatitude" type="number" step="0.0001" value="21.1458"></label><label>Longitude<input id="aiLongitude" type="number" step="0.0001" value="79.0882"></label><label>Drone<select id="aiDrone"><option value="">No Drone</option></select></label><button class="btn" onclick="runAI()">🤖 Run AI Detection</button></div><div id="aiResult" class="result">Run detection to see results.</div></section>
+<section id="routesPage" class="view"><div class="page-head"><div><h2>Rescue Routes</h2><p>Generate and display a route between two locations</p></div></div><div class="form grid-form"><label>Start latitude<input id="startLat" type="number" step="0.0001" value="21.1400"></label><label>Start longitude<input id="startLon" type="number" step="0.0001" value="79.0800"></label><label>Target latitude<input id="targetLat" type="number" step="0.0001" value="21.1550"></label><label>Target longitude<input id="targetLon" type="number" step="0.0001" value="79.0950"></label><button class="btn" onclick="generateRoute()">📍 Generate Route</button></div><div id="routeResult" class="result"></div></section>
+<section id="missionsPage" class="view"><div class="page-head"><div><h2>Mission Logs</h2><p>Create, start and complete missions</p></div><button class="btn" onclick="createMission()">＋ Create Mission</button></div><div id="missionList"></div></section>
+<section id="settingsPage" class="view"><div class="page-head"><div><h2>Settings</h2><p>System configuration</p></div></div><div class="form"><label>Alert Threshold<select id="alertThreshold"><option>LOW</option><option>MEDIUM</option><option selected>HIGH</option></select></label><label>Refresh Interval (seconds)<input id="refreshInterval" type="number" min="1" max="60" value="5"></label><button class="btn" onclick="saveSettings()">Save Settings</button></div></section>
+</main></div>
+<div id="toast" class="toast"></div>
+
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body></html>
